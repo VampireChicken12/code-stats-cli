@@ -1,0 +1,38 @@
+{
+	"name": "code-stats",
+	"version": "1.0.0",
+	"main": "./dist/cli.js",
+	"bin": {
+		"code-stats": "./dist/cli.js"
+	},
+	"scripts": {
+		"start": "node ./dist/cli.js",
+		"build": "esbuild src/cli.ts --bundle --platform=node --format=esm --target=node20",
+		"dev": "tsx watch src/cli.ts",
+		"lint": "eslint .",
+		"lint:fix": "eslint . --fix",
+		"format": "prettier --write .",
+		"link": "(npm unlink code-stats || true) && chmod +x ./dist/cli.js && npm link"
+	},
+	"dependencies": {
+		"@clack/prompts": "^0.7.0",
+		"chalk": "^5.3.0",
+		"cleye": "^1.3.2"
+	},
+	"devDependencies": {
+		"@eslint/js": "^9.39.4",
+		"@total-typescript/ts-reset": "^0.6.1",
+		"@types/node": "^25.0.9",
+		"esbuild": "^0.19.8",
+		"eslint": "^9.38.0",
+		"eslint-plugin-import": "^2.32.0",
+		"eslint-plugin-perfectionist": "^5.0.0",
+		"eslint-plugin-prettier": "^5.5.4",
+		"eslint-plugin-promise": "^7.2.1",
+		"globals": "^15.0.0",
+		"prettier": "^3.6.2",
+		"tsx": "^4.21.0",
+		"typescript": "5.9",
+		"typescript-eslint": "^8.46.2"
+	}
+}

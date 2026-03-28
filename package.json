@@ -1,13 +1,14 @@
 {
 	"name": "code-stats",
 	"version": "1.0.0",
+	"type": "module",
 	"main": "./dist/cli.js",
 	"bin": {
 		"code-stats": "./dist/cli.js"
 	},
 	"scripts": {
 		"start": "node ./dist/cli.js",
-		"build": "esbuild src/cli.ts --bundle --platform=node --format=esm --target=node20",
+		"build": "esbuild src/cli.ts --bundle --platform=node --format=esm --target=node20 --outfile=dist/cli.js",
 		"dev": "tsx watch src/cli.ts",
 		"lint": "eslint .",
 		"lint:fix": "eslint . --fix",

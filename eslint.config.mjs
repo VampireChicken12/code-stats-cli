@@ -13,7 +13,7 @@ const __dirname = dirname(__filename);
 
 export default [
 	{
-		ignores: ["dist/**/*", "releases/**/*"]
+		ignores: ["**/node_modules/**/*", "**/dist/**/*", "**/releases/**/*"]
 	},
 	eslint.configs.recommended,
 	...tseslint.configs.recommendedTypeChecked.map((config) => ({
@@ -28,29 +28,32 @@ export default [
 	{
 		files: ["**/*.ts"],
 		languageOptions: {
-			parser: tseslint.parser,
 			ecmaVersion: "latest",
-			sourceType: "module",
 			globals: {
 				...globals.node
 			},
+			parser: tseslint.parser,
 			parserOptions: {
 				project: "./tsconfig.json",
 				tsconfigRootDir: __dirname
-			}
+			},
+			sourceType: "module"
 		},
 		plugins: {
 			"@typescript-eslint": tseslint.plugin,
-			import: importPlugin,
 			promise: promisePlugin
 		},
 		rules: {
-			"@typescript-eslint/no-unused-vars": ["error"],
-			"@typescript-eslint/no-explicit-any": "off",
 			"@typescript-eslint/explicit-module-boundary-types": "off",
+			"@typescript-eslint/no-explicit-any": "off",
 			"@typescript-eslint/no-floating-promises": "error",
-			quotes: ["error", "double", { avoidEscape: true, allowTemplateLiterals: true }],
-			semi: ["error", "always"],
+			"@typescript-eslint/no-unused-vars": ["error"],
+			"import/first": ["error"],
+			"no-empty": ["error", { allowEmptyCatch: true }],
+			"no-mixed-spaces-and-tabs": ["error", "smart-tabs"],
+			"no-useless-escape": "off",
+			"prefer-const": ["error", { destructuring: "any", ignoreReadBeforeAssign: false }],
+			"prefer-destructuring": ["error", { array: true, object: true }, { enforceForRenamedProperties: true }],
 			"prettier/prettier": [
 				"error",
 				{
@@ -64,26 +67,18 @@ export default [
 					useTabs: true
 				}
 			],
-			"prefer-const": ["error", { destructuring: "any", ignoreReadBeforeAssign: false }],
-			"prefer-destructuring": [
-				"error",
-				{ array: true, object: true },
-				{ enforceForRenamedProperties: true }
-			],
-			"no-useless-escape": "off",
-			"no-empty": ["error", { allowEmptyCatch: true }],
-			"no-mixed-spaces-and-tabs": ["error", "smart-tabs"],
-			"import/first": ["error"]
+			quotes: ["error", "double", { allowTemplateLiterals: true, avoidEscape: true }],
+			semi: ["error", "always"]
 		}
 	},
 	{
 		files: ["**/*.js", "**/*.mjs", "**/*.cjs"],
 		languageOptions: {
 			ecmaVersion: "latest",
-			sourceType: "module",
 			globals: {
 				...globals.node
-			}
+			},
+			sourceType: "module"
 		}
 	}
 ];

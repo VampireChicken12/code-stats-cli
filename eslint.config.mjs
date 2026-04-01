@@ -69,6 +69,14 @@ export default [
 			],
 			quotes: ["error", "double", { allowTemplateLiterals: true, avoidEscape: true }],
 			semi: ["error", "always"]
+		},
+		settings: {
+			"import/resolver": {
+				typescript: {
+					alwaysTryTypes: true,
+					project: __dirname + "/tsconfig.json"
+				}
+			}
 		}
 	},
 	{

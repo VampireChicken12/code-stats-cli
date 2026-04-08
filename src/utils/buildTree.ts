@@ -1,33 +1,56 @@
 import path from "node:path";
-import type { DirNode, FileStat } from "../types";
 
-export function createNode(name: string, fullPath: string): DirNode {
+import type { FileStat } from "@/src/utils/cache";
+
+import type { DirNode } from "../types";
+
+export function createNode(name: string, fullPath: string, parent?: DirNode, isBase = false): DirNode {
 	return {
-		name,
-		path: fullPath,
-		lines: 0,
-		chars: 0,
+		children: new Map(),
 		files: [],
-		children: new Map()
+		isBase,
+		name,
+		parent,
+		path: fullPath,
+		totals: { blankLines: 0, bytes: 0, chars: 0, codeLines: 0, dirs: 0, files: 0, lines: 0 }
 	};
 }
+export function insertFile(root: DirNode, file: FileStat, dirMap: Map<string, DirNode>) {
+	const dirPath = path.dirname(file.path);
+	let node = dirMap.get(dirPath);
 
-export function insertFile(root: DirNode, file: FileStat): void {
-	const parts = file.path.split(path.sep);
-	let current = root;
-
-	for (let i = 0; i < parts.length - 1; i++) {
-		const part = parts[i]!;
-		const fullPath = parts.slice(0, i + 1).join(path.sep);
-
-		if (!current.children.has(part)) {
-			current.children.set(part, createNode(part, fullPath));
+	if (!node) {
+		const parts = dirPath.split("/");
+		let parentNode = root;
+		// eslint-disable-next-line prefer-destructuring
+		let currentPath = root.path;
+		for (const part of parts) {
+			currentPath = path.join(currentPath, part);
+			if (!dirMap.has(currentPath)) {
+				const newNode = createNode(part, currentPath, parentNode);
+				parentNode.children.set(part, newNode);
+				dirMap.set(currentPath, newNode);
+			}
+			parentNode = dirMap.get(currentPath)!;
 		}
-
-		current = current.children.get(part)!;
-		current.lines += file.lines;
-		current.chars += file.chars;
+		node = parentNode;
 	}
 
-	current.files.push(file);
+	// Insert file
+	node.files.push(file);
+	node.totals.files++;
+	node.totals.lines += file.lines;
+	node.totals.chars += file.chars;
+	node.totals.codeLines += file.codeLines;
+	node.totals.blankLines += file.blankLines;
+	node.totals.bytes += file.bytes;
+
+	for (let { parent: current } = node; current; { parent: current } = current) {
+		current.totals.files++;
+		current.totals.lines += file.lines;
+		current.totals.chars += file.chars;
+		current.totals.codeLines += file.codeLines;
+		current.totals.blankLines += file.blankLines;
+		current.totals.bytes += file.bytes;
+	}
 }

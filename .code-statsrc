@@ -1,0 +1,13 @@
+{
+    "exclude": [
+        "dist"
+    ],
+    "format": "tree",
+    "quiet": false,
+    "rootLevels": 0,
+    "sortBy": "lines",
+    "types": [
+        "js",
+        "ts"
+    ]
+}

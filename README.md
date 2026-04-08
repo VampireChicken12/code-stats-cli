@@ -142,7 +142,7 @@ code-stats . -m percentile
 
 ## ⚡ Performance
 
-- Concurrent file scanning with default (number of cores * 2) workers
+- Concurrent file scanning with default (number of cores \* 2) workers
 - Incremental caching for faster repeated runs
 - Automatic cache cleanup to prevent bloat
 - Real-time progress with files per second, ETA, and live metrics
@@ -159,7 +159,7 @@ code-stats . -m percentile
 | `-f, --format`           | Output format: `tree`, `table`, `summary`                                    | `tree`                    |
 | `-g, --groupBy`          | Group by `ext`, `dir`, `lang`, or `size`                                     | —                         |
 | `-s, --sortBy`           | Sort by `lines`, `chars`, `blankLines`, `codeLines`, `files`, `name`, `size` | `lines`                   |
-| `-o, --order`            | Sort order: `asc`, `desc`                                                    | `desc`                     |
+| `-o, --order`            | Sort order: `asc`, `desc`                                                    | `desc`                    |
 | `-n, --topFiles`         | Show top N files globally                                                    | —                         |
 | `-p, --perDirTopFiles`   | Show top N files per directory                                               | —                         |
 | `-d, --depth`            | Maximum directory traversal depth. `-1` means unlimited                      | `-1`                      |
@@ -176,7 +176,7 @@ code-stats . -m percentile
 | `--clearCache`           | Delete cache before scanning                                                 | `false`                   |
 | `--includeHidden`        | Include hidden files and directories                                         | `false`                   |
 | `--followSymlinks`       | Follow symbolic links                                                        | `false`                   |
-| `--concurrency`          | Number of concurrent file scans                                              | `8`                       |
+| `--concurrency`          | Number of concurrent file scans                                              | `number of cores * 2`                       |
 | `--benchmark`            | Enable timing measurements for CLI operations                                | `false`                   |
 | `--enableSeverityColors` | Colorize output based on severity thresholds                                 | `false`                   |
 | `--severityLines`        | Line thresholds for medium, high, critical                                   | —                         |

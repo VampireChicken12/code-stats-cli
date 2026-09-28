@@ -20,11 +20,10 @@ import type { CodeStatsConfig } from "./utils/config";
 import { getNumberFormatter, msToHumanReadable, resolveRootDir } from "./utils";
 import { buildConfig, defaultConfig, formats, groupBy, loadConfig, parseCLIFlags, severityMode, sortBy, userConfigHasKey } from "./utils/config";
 import { CSVPrinter, GroupPrinter, JSONPrinter, SummaryPrinter, TablePrinter, TopFilesPrinter, TreePrinter } from "./utils/printers";
-import { scanFiles } from "./utils/scanFiles";
+import { scanFiles } from "./utils/scan";
 const controller = new AbortController();
 let aborted = false;
 
-export const PROGRESS_INTERVAL = 100;
 export const logger = new Logger({
 	quiet: false,
 	style: new Style({ quiet: false }, { chars: [0, 0, 0], lines: [0, 0, 0] })
@@ -351,7 +350,6 @@ void (async () => {
 		}
 		const cache = await benchmark.run("loading cache", () => loadCache(process.cwd()));
 		// ---------- SCAN ----------
-		let lastUpdate = 0;
 		const rootName = rootDir === base ? path.basename(base) : path.basename(rootDir);
 		const root = createNode(rootName || rootDir, rootDir, undefined, rootDir === base);
 		const files = await tryBlock("file scanning", async () => {
@@ -369,8 +367,6 @@ void (async () => {
 						onProgress: (p) => {
 							if (config.quiet) return;
 							const now = Date.now();
-							if (now - lastUpdate < PROGRESS_INTERVAL) return;
-							lastUpdate = now;
 
 							switch (p.stage) {
 								case "collect":
@@ -398,6 +394,7 @@ void (async () => {
 						},
 						signal: controller.signal
 					},
+					{ benchmark, logger },
 					root
 				);
 			});

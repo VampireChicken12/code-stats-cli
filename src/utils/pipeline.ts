@@ -7,8 +7,7 @@ import type { DirNode } from "@/src/types";
 import type { FileStat } from "@/src/utils/cache";
 
 import { createNode } from "@/src/utils/buildTree";
-import { clearCache, loadCache, saveCache } from "@/src/utils/cache";
-import { cleanCacheAsync } from "@/src/utils/cleanCache";
+import { cleanCacheAsync, clearCache, loadCache, saveCache } from "@/src/utils/cache";
 import { buildConfig, loadConfig, parseCLIFlags, userConfigHasKey } from "@/src/utils/config";
 import { getNumberFormatter, resolveRootDir } from "@/src/utils/index";
 import { computeSeverity } from "@/src/utils/severity";
@@ -85,7 +84,7 @@ export async function run(
 		await benchmark.run("clearing cache", () => clearCache(process.cwd()));
 		logger.info("🧹 Cache cleared");
 	}
-	const cache = await benchmark.run("loading cache", () => loadCache(process.cwd()));
+	const cache = await loadCache(process.cwd(), logger, benchmark);
 
 	// ---------- SCAN ----------
 	const rootDir = resolveRootDir(resolved, config.rootLevels);

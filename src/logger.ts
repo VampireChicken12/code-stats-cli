@@ -1,7 +1,4 @@
-import type { CodeStatsConfig } from "@/src/utils/config";
-import type { SeverityLevels } from "@/src/utils/severity";
-
-import { Style } from "@/src/utils/style";
+import type { Style } from "@/src/utils/style";
 
 export interface LoggerOptions {
 	quiet?: boolean;
@@ -11,21 +8,15 @@ export interface LoggerOptions {
 
 export type LogLevel = "debug" | "error" | "info" | "warn";
 
-type Severity = {
-	chars: SeverityLevels;
-	lines: SeverityLevels;
-};
-
 export class Logger {
 	private quiet: boolean;
 	private style?: Style;
 	private verbose: boolean;
 
-	constructor(options: LoggerOptions = {}) {
-		this.quiet = options.quiet ?? false;
-		this.verbose = options.verbose ?? false;
-		// eslint-disable-next-line prefer-destructuring
-		this.style = options.style;
+	constructor({ quiet = false, style, verbose = false }: LoggerOptions = {}) {
+		this.quiet = quiet;
+		this.verbose = verbose;
+		this.style = style;
 	}
 
 	debug(...args: Parameters<typeof console.debug>) {
@@ -47,13 +38,8 @@ export class Logger {
 		console.log(...this.formatArgs("info", args));
 	}
 
-	setConfig(config: CodeStatsConfig) {
-		this.quiet = config.quiet ?? false;
-		return this;
-	}
-
-	setSeverityLevels(severity: Severity, config: CodeStatsConfig) {
-		this.style = new Style(config, severity);
+	setQuiet(quiet: boolean) {
+		this.quiet = quiet;
 		return this;
 	}
 

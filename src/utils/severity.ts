@@ -1,11 +1,11 @@
 import type { FileStat } from "@/src/utils/cache";
 import type { CodeStatsConfig } from "@/src/utils/config";
 
-import { logger } from "@/src/cli";
-
 export type SeverityLevels = [number, number, number];
 
-export function computeSeverity(files: FileStat[], config: CodeStatsConfig) {
+export type SeverityLogger = { info: (...args: unknown[]) => void };
+
+export function computeSeverity(files: FileStat[], config: CodeStatsConfig, logger: SeverityLogger) {
 	const lineValues = files.map((f) => f.lines);
 	const charValues = files.map((f) => f.chars);
 

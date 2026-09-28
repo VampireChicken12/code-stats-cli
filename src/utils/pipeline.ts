@@ -9,9 +9,9 @@ import type { FileStat } from "@/src/utils/cache";
 import { createNode } from "@/src/utils/buildTree";
 import { clearCache, loadCache, saveCache } from "@/src/utils/cache";
 import { cleanCacheAsync } from "@/src/utils/cleanCache";
-import { buildConfig, defaultConfig, loadConfig, parseCLIFlags, userConfigHasKey } from "@/src/utils/config";
+import { buildConfig, loadConfig, parseCLIFlags, userConfigHasKey } from "@/src/utils/config";
 import { getNumberFormatter, resolveRootDir } from "@/src/utils/index";
-import { computeSeverity, parseSeverity } from "@/src/utils/severity";
+import { computeSeverity } from "@/src/utils/severity";
 import { Style } from "@/src/utils/style";
 
 import type { CodeStatsConfig } from "./config";
@@ -35,8 +35,7 @@ export type PipelineLogger = {
 	error: (...args: unknown[]) => void;
 	info: (...args: unknown[]) => void;
 	log: (...args: unknown[]) => void;
-	setConfig: (config: CodeStatsConfig) => void;
-	setSeverityLevels: (severity: { chars: [number, number, number]; lines: [number, number, number] }, config: CodeStatsConfig) => void;
+	setQuiet: (quiet: boolean) => void;
 	setStyle: (style: Style) => void;
 	warn: (...args: unknown[]) => void;
 };
@@ -68,20 +67,7 @@ export async function run(
 	const fileConfig = loadConfig(process.cwd(), logger);
 	const cliConfig = parseCLIFlags(argv, logger);
 	const { final: config, user: userConfig } = buildConfig(fileConfig ?? {}, cliConfig);
-	logger.setConfig(config);
-	logger.setSeverityLevels(
-		{
-			chars: parseSeverity(config.severityChars ?? defaultConfig.severityChars),
-			lines: parseSeverity(config.severityLines ?? defaultConfig.severityLines)
-		},
-		config
-	);
-	logger.setStyle(
-		new Style(config, {
-			chars: parseSeverity(config.severityChars ?? defaultConfig.severityChars),
-			lines: parseSeverity(config.severityLines ?? defaultConfig.severityLines)
-		})
-	);
+	logger.setQuiet(config.quiet);
 
 	// ---------- VALIDATE FLAGS ----------
 	if ((config.json || config.csv) && config.format !== "tree") {
@@ -142,8 +128,9 @@ export async function run(
 	}
 
 	// ---------- SEVERITY ----------
-	const { severityChars, severityLines } = computeSeverity(files, config);
+	const { severityChars, severityLines } = computeSeverity(files, config, logger);
 	const style = new Style(config, { chars: severityChars, lines: severityLines });
+	logger.setStyle(style);
 
 	// ---------- PRINT ----------
 	function getPrinter(cfg: CodeStatsConfig, st: Style) {

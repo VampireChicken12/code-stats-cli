@@ -1,26 +1,21 @@
 #!/usr/bin/env node
 import { intro, outro, spinner } from "@clack/prompts";
 import { cli } from "cleye";
-import { detectLanguage } from "file-lang";
-import { existsSync, statSync } from "node:fs";
 import path from "node:path";
 
-import type { CliFlagsFromOptions, DirNode } from "@/src/types";
+import type { CliFlagsFromOptions } from "@/src/types";
 
 import { Logger } from "@/src/logger";
 import { Benchmark } from "@/src/utils/benchmark";
-import { createNode } from "@/src/utils/buildTree";
-import { clearCache, loadCache, saveCache } from "@/src/utils/cache";
-import { cleanCacheAsync } from "@/src/utils/cleanCache";
-import { computeSeverity, parseSeverity } from "@/src/utils/severity";
-import { Style } from "@/src/utils/style";
 
 import type { CodeStatsConfig } from "./utils/config";
+import type { ScanProgress } from "./utils/scan/scanFiles";
 
-import { getNumberFormatter, msToHumanReadable, resolveRootDir } from "./utils";
-import { buildConfig, defaultConfig, formats, groupBy, loadConfig, parseCLIFlags, severityMode, sortBy, userConfigHasKey } from "./utils/config";
-import { CSVPrinter, GroupPrinter, JSONPrinter, SummaryPrinter, TablePrinter, TopFilesPrinter, TreePrinter } from "./utils/printers";
-import { scanFiles } from "./utils/scan";
+import { formats, groupBy, severityMode, sortBy } from "./utils/config";
+import { msToHumanReadable } from "./utils/index";
+import { run } from "./utils/pipeline";
+import { Style } from "./utils/style";
+
 const controller = new AbortController();
 let aborted = false;
 
@@ -28,6 +23,7 @@ export const logger = new Logger({
 	quiet: false,
 	style: new Style({ quiet: false }, { chars: [0, 0, 0], lines: [0, 0, 0] })
 });
+
 const argv = cli({
 	flags: {
 		benchmark: {
@@ -208,49 +204,39 @@ const argv = cli({
 	help: {
 		description: "Analyze codebases and report file, line, character, and size statistics.",
 		examples: [
-			// --- Basic ---
 			"code-stats .                          # Analyze current directory",
 			"code-stats ./src                      # Analyze a specific folder",
 			"code-stats . --clearCache             # Force full re-scan (ignore cache)",
 			"code-stats . --includeHidden --followSymlinks  # Include hidden files and follow symlinks",
-			// --- Filtering ---
 			"code-stats . -l ts,tsx                # Include only TS/TSX files",
 			"code-stats . -e node_modules,dist     # Exclude directories",
 			"code-stats . -i '*.test.ts'           # Ignore test files (extends .gitignore)",
-			// --- Output formats ---
 			"code-stats . -f tree                  # Hierarchical tree (default)",
 			"code-stats . -f table                 # Tabular view",
 			"code-stats . -f summary               # Totals only view",
 			"code-stats . --compact                # Reduce verbosity",
 			"code-stats . --summaryOnly            # Show only totals (no breakdown)",
-			// --- Machine-readable output ---
 			"code-stats . --json                   # JSON to stdout",
 			"code-stats . --json --pretty          # Pretty JSON",
 			"code-stats . --saveJson               # Save JSON to file",
 			"code-stats . --csv                    # CSV to stdout",
 			"code-stats . --saveCsv                # Save CSV to file",
-			// --- Grouping ---
 			"code-stats . -g ext                   # Group by file type",
 			"code-stats . -g dir                   # Group by directory",
 			"code-stats . -g size                  # Group by size buckets",
-			// --- Sorting / ranking ---
 			"code-stats . -s lines                 # Sort by line count",
 			"code-stats . -s chars                 # Sort by character count",
 			"code-stats . -o desc                  # Descending order",
 			"code-stats . -s lines -o desc -n 10   # Top 10 largest files",
 			"code-stats . -p 3                     # Top 3 files per directory",
-			// --- Directory control ---
 			"code-stats . -d 2                     # Limit depth to 2 levels",
 			"code-stats . -d 2 -r 1                # Shift root + limit depth",
-			// --- Output control ---
 			"code-stats . --quiet                  # Disable logs/spinners",
 			"code-stats . --noColor                # Disable ANSI colors",
-			// --- Severity ---
 			"code-stats . --enableSeverityColors   # Enable severity highlighting",
 			"code-stats . --severityLines 2000,5000,10000",
 			"code-stats . --severityChars 5000,20000,100000",
 			"code-stats . -m percentile            # Auto-scale severity (distribution-based)",
-			// --- Real-world combos ---
 			"code-stats . -l ts,tsx -g ext -s lines -o desc -n 5",
 			"code-stats ./src -f table -s chars -o desc --compact",
 			"code-stats . -e dist,node_modules --saveJson",
@@ -279,196 +265,77 @@ const argv = cli({
 	name: "code-stats",
 	parameters: ["[path]"]
 });
-export type CLI_argv = typeof argv;
-const standardNotationFormatter = getNumberFormatter("standard");
-const compactNotationFormatter = getNumberFormatter("compact");
-const resolveFormatter = (n: number) => (n >= 100_000 ? compactNotationFormatter(n) : standardNotationFormatter(n));
-function printSummary(config: CodeStatsConfig, duration: number, totals: DirNode["totals"]) {
-	if (config.format !== "summary")
-		logger.log(
-			`TOTAL → Lines: ${standardNotationFormatter(totals.lines)}, Chars: ${standardNotationFormatter(totals.chars)}${totals.files > 0 ? `, Files: ${standardNotationFormatter(totals.files)}` : ""}${totals.dirs > 0 ? `, Directories: ${standardNotationFormatter(totals.dirs)}` : ""}`
-		);
-	if (!config.quiet) outro(`✨ Done in ${msToHumanReadable(duration)}${aborted ? " (partial)" : ""}`);
-}
 
-async function tryBlock<T>(label: string, fn: () => Promise<T> | T): Promise<null | T> {
-	try {
-		return await fn();
-	} catch (err: any) {
-		logger.error(`Error in ${label}:`, err instanceof Error ? err.message : err);
-		if (aborted) return null;
-		process.exit(1);
-	}
-}
-export const benchmark = new Benchmark({ enabled: argv.flags.benchmark });
+export type CLI_argv = typeof argv;
+const {
+	flags: { benchmark: enableBenchmark }
+} = argv;
+export const benchmark = new Benchmark({ enabled: enableBenchmark });
+
 void (async () => {
-	{
-		intro("📊 Code stats");
-		const startTime = Date.now();
-		// ---------- PATH ----------
-		const base = path.resolve(argv._[0] ?? ".");
-		if (!existsSync(base)) return outro("Path does not exist.");
-		if (!statSync(base).isDirectory()) return outro(`Path must be a directory. Received: ${base}`);
-		// ---------- LOAD CONFIG ----------
-		const fileConfig = loadConfig(process.cwd());
-		const cliConfig = parseCLIFlags(argv);
-		const { final: config, user: userConfig } = buildConfig(fileConfig ?? {}, cliConfig);
-		logger.setConfig(config);
-		logger.setSeverityLevels(
-			{
-				chars: parseSeverity(config.severityChars ?? defaultConfig.severityChars),
-				lines: parseSeverity(config.severityLines ?? defaultConfig.severityLines)
-			},
-			config
-		);
-		logger.setStyle(
-			new Style(config, {
-				chars: parseSeverity(config.severityChars ?? defaultConfig.severityChars),
-				lines: parseSeverity(config.severityLines ?? defaultConfig.severityLines)
-			})
-		);
-		const rootDir = resolveRootDir(base, config.rootLevels);
-		const s = spinner();
-		const spin = {
-			message: (msg: string) => !config.quiet && s.message(msg),
-			start: (msg: string) => !config.quiet && s.start(msg),
-			stop: (msg: string) => !config.quiet && s.stop(msg)
-		};
-		if ((config.json || config.csv) && config.format !== "tree") {
-			logger.warn("--json/--csv overrides --format");
-		}
-		if (config.json && config.csv) {
-			logger.error("Cannot use --json and --csv together");
+	intro("📊 Code stats");
+	const startTime = Date.now();
+	const {
+		flags: { compact, quiet }
+	} = argv;
+
+	const s = spinner();
+	const spin = {
+		message: (msg: string) => !quiet && s.message(msg),
+		start: (msg: string) => !quiet && s.start(msg),
+		stop: (msg: string) => !quiet && s.stop(msg)
+	};
+
+	const { _: positionalArgs } = argv;
+	const base = path.resolve(positionalArgs[0] ?? ".");
+
+	try {
+		await run(base, argv, { benchmark, logger }, controller.signal, (p: ScanProgress) => {
+			if (quiet) return;
+			const now = Date.now();
+
+			switch (p.stage) {
+				case "collect":
+					spin.message(`Collecting... ${String(p.files)} files (${String(p.dirs)} dirs)`);
+					break;
+				case "done":
+					spin.message(`Finalizing... ${String(p.totalFiles)} files`);
+					break;
+				case "process": {
+					const elapsed = (now - startTime) / 1000;
+					const rate = elapsed > 0 ? Math.round(p.completed / elapsed) : 0;
+					const displayPath = path.relative(base, p.path);
+					const linesLabel = compact ? "L" : "Lines";
+					const charsLabel = compact ? "C" : "Chars";
+					const elapsedTime = msToHumanReadable(elapsed * 1000);
+					spin.message(
+						`${p.completed}/${p.total} files (${rate}/s) | ${linesLabel}: ${p.lines} (${p.totalLines}) ${charsLabel}: ${p.chars} (${p.totalChars}) | Elapsed: ${elapsedTime} | ETA: ${msToHumanReadable(p.etaMs)} | ${displayPath}`
+					);
+					break;
+				}
+			}
+		});
+
+		const duration = Date.now() - startTime;
+		if (!quiet) outro(`✨ Done in ${msToHumanReadable(duration)}${aborted ? " (partial)" : ""}`);
+	} catch (err: unknown) {
+		if (aborted) {
+			if (!quiet) outro("Scan aborted");
+		} else {
+			logger.error("Error:", err instanceof Error ? err.message : err);
 			process.exit(1);
 		}
-		if (config.clearCache) {
-			await tryBlock("clearing cache", () => benchmark.run("clearing cache", () => clearCache(process.cwd())));
-			logger.info("🧹 Cache cleared");
-		}
-		if (userConfig.severityMode !== undefined && (userConfigHasKey("severityLines", userConfig) || userConfigHasKey("severityChars", userConfig))) {
-			logger.warn("--severityMode overrides manual severity thresholds");
-		}
-		const cache = await benchmark.run("loading cache", () => loadCache(process.cwd()));
-		// ---------- SCAN ----------
-		const rootName = rootDir === base ? path.basename(base) : path.basename(rootDir);
-		const root = createNode(rootName || rootDir, rootDir, undefined, rootDir === base);
-		const files = await tryBlock("file scanning", async () => {
-			spin.start("Scanning files...");
-
-			const result = await benchmark.run("file scanning", async () => {
-				return await scanFiles(
-					base,
-					{
-						cache,
-						...config,
-						languages: config.languages.map((t) =>
-							t === "all" ? t : detectLanguage(t.toLowerCase()) === "Unknown" ? t : detectLanguage(t.toLowerCase())
-						),
-						onProgress: (p) => {
-							if (config.quiet) return;
-							const now = Date.now();
-
-							switch (p.stage) {
-								case "collect":
-									spin.message(`Collecting... ${resolveFormatter(p.files)} files (${resolveFormatter(p.dirs)} dirs)`);
-									break;
-
-								case "done":
-									spin.message(`Finalizing... ${resolveFormatter(p.totalFiles)} files`);
-									break;
-
-								case "process": {
-									const elapsed = (now - startTime) / 1000;
-									const rate = elapsed > 0 ? Math.round(p.completed / elapsed) : 0;
-									const displayPath = path.relative(rootDir, p.path);
-									const linesLabel = config.compact ? "L" : "Lines";
-									const charsLabel = config.compact ? "C" : "Chars";
-
-									const elapsedTime = msToHumanReadable(elapsed * 1000);
-									spin.message(
-										`${resolveFormatter(p.completed)}/${resolveFormatter(p.total)} files (${resolveFormatter(rate)}/s) | ${linesLabel}: ${resolveFormatter(p.lines)} (${resolveFormatter(p.totalLines)}) ${charsLabel}: ${resolveFormatter(p.chars)} (${resolveFormatter(p.totalChars)}) | Elapsed: ${elapsedTime} | ETA: ${msToHumanReadable(p.etaMs)} | ${displayPath}`
-									);
-									break;
-								}
-							}
-						},
-						signal: controller.signal
-					},
-					{ benchmark, logger },
-					root
-				);
-			});
-
-			spin.stop(aborted ? "Scan aborted" : `Done (${resolveFormatter(result.length)} files)`);
-
-			return result;
-		});
-
-		if (!files || files.length === 0) return;
-		if (aborted && !config.quiet && files.length > 0) {
-			logger.warn("Scan aborted — results are partial");
-		}
-
-		void tryBlock("updating cache", () => {
-			for (const f of files) cache.files[f.path] = f;
-
-			const now = Date.now();
-			const { length: cacheSize } = Object.keys(cache.files);
-
-			const shouldClean = cacheSize > 200_000 || now - cache.meta.createdAt > cache.meta.maxAgeMs;
-
-			if (shouldClean) {
-				void benchmark
-					.run("cleaning cache", () => cleanCacheAsync(cache))
-					.then((finalCache) => saveCache(process.cwd(), finalCache))
-					.catch((err) => logger.error("Error cleaning cache in background:", err));
-			} else {
-				saveCache(process.cwd(), cache);
-			}
-		});
-		const { severityChars, severityLines } = computeSeverity(files, config);
-
-		const style = new Style(config, {
-			chars: severityChars,
-			lines: severityLines
-		});
-		function getPrinter(config: CodeStatsConfig, style: Style) {
-			if (config.json) return new JSONPrinter(config, style);
-			if (config.csv) return new CSVPrinter(config, style);
-			if (config.groupBy) return new GroupPrinter(config, style, config.groupBy);
-			switch (config.format) {
-				case "summary":
-					return new SummaryPrinter(config, style);
-				case "table":
-					return new TablePrinter(config, style);
-				case "tree":
-					return new TreePrinter(config, style);
-				default:
-					config.format satisfies never;
-			}
-		}
-		const printer = getPrinter(config, style);
-		// ---------- PRINT ----------
-		await tryBlock("printing results", async () => {
-			await benchmark.run("printing results", () => {
-				const duration = Number((Date.now() - startTime).toFixed(0));
-				if (config.topFiles) {
-					new TopFilesPrinter(config, style).print(files, root);
-					return printSummary(config, duration, root.totals);
-				}
-				if (config.summaryOnly) return printSummary(config, duration, root.totals);
-				printer?.print(files, root);
-				printSummary(config, duration, root.totals);
-			});
-		});
-		benchmark.printSummary();
 	}
+
+	benchmark.printSummary();
 })();
+
 process.on("SIGINT", () => {
 	aborted = true;
 	logger.warn("Scan aborted by user (Ctrl+C)");
 	controller.abort();
 });
+
 process.on("uncaughtException", (err) => {
 	aborted = true;
 	if (err instanceof Error) {

@@ -21,7 +21,7 @@ export type ScanOptions = CodeStatsConfig & {
 	signal?: AbortSignal;
 };
 
-type ScanProgress = CollectorProgress | ProcessorProgress | { stage: "done"; totalFiles: number };
+export type ScanProgress = CollectorProgress | ProcessorProgress | { stage: "done"; totalFiles: number };
 
 export async function scanFiles(dir: string, options: ScanOptions, deps: ScanDeps, root?: DirNode) {
 	const { cache, onProgress, signal, ...config } = options;

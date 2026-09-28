@@ -2,9 +2,9 @@ import fs from "node:fs";
 import path from "node:path";
 import { z } from "zod";
 
+import type { CLI_argv } from "@/src/cli";
 import type { Optional } from "@/src/types";
 
-import { type CLI_argv, logger } from "@/src/cli";
 import { formatZodErrors } from "@/src/utils";
 
 export const formats = ["tree", "table", "summary"] as const;
@@ -46,7 +46,9 @@ export const configSchema = z.object({
 
 export type CodeStatsConfig = z.infer<typeof configSchema>;
 
-export function loadConfig(cwd: string): null | Partial<CodeStatsConfig> {
+type ConfigLogger = { error: (...args: unknown[]) => void };
+
+export function loadConfig(cwd: string, logger?: ConfigLogger): null | Partial<CodeStatsConfig> {
 	const configPath = path.join(cwd, ".code-statsrc");
 	if (!fs.existsSync(configPath)) return null;
 
@@ -55,15 +57,16 @@ export function loadConfig(cwd: string): null | Partial<CodeStatsConfig> {
 		raw = JSON.parse(fs.readFileSync(configPath, "utf-8"));
 		return configSchema.partial().parse(raw);
 	} catch (err) {
+		const log = logger ?? console;
 		if (err instanceof SyntaxError) {
-			logger.error(`Invalid JSON in config file (.code-statsrc) at ${configPath}: ${(err as Error).message}`);
+			log.error(`Invalid JSON in config file (.code-statsrc) at ${configPath}: ${(err as Error).message}`);
 		} else if (err instanceof z.ZodError) {
-			logger.error(`Invalid values in config file (.code-statsrc) at ${configPath}:`);
-			logger.error(formatZodErrors(err, raw as object));
+			log.error(`Invalid values in config file (.code-statsrc) at ${configPath}:`);
+			log.error(formatZodErrors(err, raw as object));
 		} else {
-			logger.error(`Unexpected error reading config file (.code-statsrc):`, err);
+			log.error(`Unexpected error reading config file (.code-statsrc):`, err);
 		}
-		process.exit(1);
+		throw err;
 	}
 }
 export const defaultConfig = {
@@ -130,18 +133,19 @@ export function mergeConfig(config: Partial<CodeStatsConfig>, cli: Partial<CodeS
 
 	return configSchema.parse(merged);
 }
-export function parseCLIFlags(argv: CLI_argv): CodeStatsConfig {
+export function parseCLIFlags(argv: CLI_argv, logger?: ConfigLogger): CodeStatsConfig {
 	const normalized = normalizeCLI(argv);
 	try {
 		return configSchema.parse(normalized);
 	} catch (err) {
+		const log = logger ?? console;
 		if (err instanceof z.ZodError) {
-			logger.error("Invalid CLI options:");
-			logger.error(formatZodErrors(err, normalized));
+			log.error("Invalid CLI options:");
+			log.error(formatZodErrors(err, normalized));
 		} else {
-			logger.error("Unexpected error while parsing CLI options:", err);
+			log.error("Unexpected error while parsing CLI options:", err);
 		}
-		process.exit(1);
+		throw err;
 	}
 }
 export function userConfigHasKey<K extends keyof CodeStatsConfig>(key: K, config: Partial<CodeStatsConfig>) {

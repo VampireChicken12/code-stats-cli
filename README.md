@@ -48,20 +48,33 @@ code-stats . --includeHidden --followSymlinks
 ## 📦 Installation (Development)
 
 ```bash
-npm install
-npm run dev
+pnpm install
+pnpm dev
 ```
 
 Link globally:
 
 ```bash
-npm run link
+pnpm link
 ```
 
 Then use anywhere:
 
 ```bash
 code-stats .
+```
+
+---
+
+## 🧹 Linting & Formatting
+
+This project uses [oxlint](https://oxc.rs/docs/guide/usage/linter) for linting and [oxfmt](https://oxc.rs/docs/guide/usage/formatter) for formatting.
+
+```bash
+pnpm lint          # Run oxlint
+pnpm lint:fix      # Run oxlint with auto-fix
+pnpm format        # Format with oxfmt
+pnpm format:check  # Check formatting
 ```
 
 ---
@@ -176,7 +189,7 @@ code-stats . -m percentile
 | `--clearCache`           | Delete cache before scanning                                                 | `false`                   |
 | `--includeHidden`        | Include hidden files and directories                                         | `false`                   |
 | `--followSymlinks`       | Follow symbolic links                                                        | `false`                   |
-| `--concurrency`          | Number of concurrent file scans                                              | `number of cores * 2`                       |
+| `--concurrency`          | Number of concurrent file scans                                              | `number of cores * 2`     |
 | `--benchmark`            | Enable timing measurements for CLI operations                                | `false`                   |
 | `--enableSeverityColors` | Colorize output based on severity thresholds                                 | `false`                   |
 | `--severityLines`        | Line thresholds for medium, high, critical                                   | —                         |

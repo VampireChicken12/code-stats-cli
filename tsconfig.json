@@ -20,9 +20,8 @@
 		"incremental": true,
 		"sourceMap": true,
 		"types": ["node"],
-		"baseUrl": ".",
 		"paths": {
-			"@/src/*": ["src/*"]
+			"@/src/*": ["./src/*"]
 		}
 	},
 	"buildOptions": {

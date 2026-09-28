@@ -1,19 +1,20 @@
 {
 	"name": "code-stats",
 	"version": "1.0.0",
-	"type": "module",
-	"main": "./dist/cli.js",
 	"bin": {
 		"code-stats": "./dist/cli.js"
 	},
+	"type": "module",
+	"main": "./dist/cli.js",
 	"scripts": {
 		"start": "node ./dist/cli.js",
 		"build": "esbuild src/cli.ts --bundle --platform=node --format=esm --target=node20 --outfile=dist/cli.js",
 		"dev": "tsx watch src/cli.ts",
-		"lint": "eslint .",
-		"lint:fix": "eslint . --fix",
-		"format": "prettier --write .",
-		"link": "(npm unlink code-stats || true) && chmod +x ./dist/cli.js && npm link"
+		"lint": "oxlint",
+		"lint:fix": "oxlint --fix",
+		"format": "oxfmt --write .",
+		"format:check": "oxfmt --check .",
+		"link": "pnpm unlink code-stats; chmod +x ./dist/cli.js; pnpm link"
 	},
 	"dependencies": {
 		"@clack/prompts": "^0.7.0",
@@ -39,6 +40,9 @@
 		"eslint-plugin-prettier": "^5.5.4",
 		"eslint-plugin-promise": "^7.2.1",
 		"globals": "^15.0.0",
+		"oxfmt": "^0.70.0",
+		"oxlint": "^1.85.0",
+		"oxlint-tsgolint": "^7.0.2003",
 		"prettier": "^3.6.2",
 		"tsx": "^4.21.0",
 		"typescript": "5.9",

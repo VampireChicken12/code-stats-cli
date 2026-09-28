@@ -14,7 +14,7 @@
 		"lint:fix": "oxlint --fix",
 		"format": "oxfmt --write .",
 		"format:check": "oxfmt --check .",
-		"link": "pnpm unlink code-stats; chmod +x ./dist/cli.js; pnpm link"
+		"link": "pnpm unlink code-stats; pnpm link"
 	},
 	"dependencies": {
 		"@clack/prompts": "^0.7.0",

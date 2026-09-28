@@ -14,7 +14,8 @@
 		"lint:fix": "oxlint --fix",
 		"format": "oxfmt --write .",
 		"format:check": "oxfmt --check .",
-		"link": "pnpm unlink code-stats; pnpm link"
+		"unlink": "pnpm unlink code-stats",
+		"link": "pnpm link"
 	},
 	"dependencies": {
 		"@clack/prompts": "^0.7.0",

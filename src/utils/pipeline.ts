@@ -133,16 +133,16 @@ export async function run(
 
 	// ---------- PRINT ----------
 	function getPrinter(cfg: CodeStatsConfig, st: Style) {
-		if (cfg.json) return new JSONPrinter(cfg, st);
-		if (cfg.csv) return new CSVPrinter(cfg, st);
-		if (cfg.groupBy) return new GroupPrinter(cfg, st, cfg.groupBy);
+		if (cfg.json) return new JSONPrinter(cfg, st, logger);
+		if (cfg.csv) return new CSVPrinter(cfg, st, logger);
+		if (cfg.groupBy) return new GroupPrinter(cfg, st, logger, cfg.groupBy);
 		switch (cfg.format) {
 			case "summary":
-				return new SummaryPrinter(cfg, st);
+				return new SummaryPrinter(cfg, st, logger);
 			case "table":
-				return new TablePrinter(cfg, st);
+				return new TablePrinter(cfg, st, logger);
 			case "tree":
-				return new TreePrinter(cfg, st);
+				return new TreePrinter(cfg, st, logger);
 			default:
 				return undefined;
 		}
@@ -157,7 +157,7 @@ export async function run(
 
 	await benchmark.run("printing results", () => {
 		if (config.topFiles) {
-			new TopFilesPrinter(config, style).print(files, root);
+			new TopFilesPrinter(config, style, logger).print(files, root);
 			printSummary(config, root.totals);
 			return;
 		}

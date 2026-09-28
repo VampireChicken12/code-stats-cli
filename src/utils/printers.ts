@@ -2,19 +2,17 @@ import { detectLanguage } from "file-lang";
 import fs from "node:fs";
 import path from "node:path";
 
-import type { DirNode, FileStats } from "@/src/types";
+import type { DirNode } from "@/src/types";
 import type { FileStat } from "@/src/utils/cache";
 
-import { logger } from "@/src/cli";
 import { getNumberFormatter } from "@/src/utils";
 import { Style } from "@/src/utils/style";
 
 import { type CodeStatsConfig } from "./config";
-import { sortFiles, sortNodes } from "./sortUtils";
+import { type GroupStats, sortFiles, sortGroups, sortNodes } from "./sortUtils";
 // eslint-disable-next-line no-control-regex
 const ANSI_FULL_REGEX = /[\u001B\u009B][[\]()#;?]*(?:\d{1,4}(?:;\d{0,4})*)?[0-9A-ORZcf-nqry=><]|\u001B\][^\u0007]*(?:\u0007|\u001B\\)/g;
 
-type GroupStats = FileStats & { count: number };
 type TreePrintNodeParams = {
 	depth: number;
 	isLast: boolean;
@@ -24,10 +22,13 @@ type TreePrintNodeParams = {
 	rootLines: number;
 };
 const formatter = getNumberFormatter("standard");
+export type PrinterLogger = { log: (...args: unknown[]) => void };
+
 export abstract class Printer {
 	constructor(
 		public config: CodeStatsConfig,
-		public style: Style
+		public style: Style,
+		protected logger: PrinterLogger
 	) {}
 	formatBytes(bytes: number) {
 		if (bytes < 1024) return `${bytes}B`;
@@ -96,7 +97,7 @@ export abstract class Printer {
 
 		fs.writeFileSync(fullPath, content, "utf-8");
 
-		logger.log(`Saved → ${fullPath}`);
+		this.logger.log(`Saved → ${fullPath}`);
 	}
 
 	private getTimestamp() {
@@ -117,7 +118,7 @@ export class CSVPrinter extends Printer {
 		if (this.config.saveCsv) {
 			this.writeFile(content, "csv");
 		} else {
-			logger.log(content);
+			this.logger.log(content);
 		}
 	}
 }
@@ -125,9 +126,10 @@ export class GroupPrinter extends Printer {
 	constructor(
 		config: CodeStatsConfig,
 		public style: Style,
+		protected logger: PrinterLogger,
 		private groupBy: CodeStatsConfig["groupBy"]
 	) {
-		super(config, style);
+		super(config, style, logger);
 	}
 	print(files: FileStat[], rootNode: DirNode) {
 		switch (this.groupBy) {
@@ -209,7 +211,7 @@ export class GroupPrinter extends Printer {
 			const compactOutput = `${key.padEnd(maxKeyLength)} → L: ${lineStr} ${codeStr} C: ${charStr}${filesStr}, S: ${sizeStr}`;
 			const fullOutput = `${key.padEnd(maxKeyLength)} → Lines: ${lineStr} ${codeStr} Chars: ${charStr}${filesStr}, Size: ${sizeStr}`;
 
-			logger.log(this.config.compact ? compactOutput : fullOutput);
+			this.logger.log(this.config.compact ? compactOutput : fullOutput);
 		}
 	}
 }
@@ -224,7 +226,7 @@ export class JSONPrinter extends Printer {
 		if (this.config.saveJson) {
 			this.writeFile(content, "json");
 		} else {
-			logger.log(content);
+			this.logger.log(content);
 		}
 	}
 }
@@ -235,13 +237,13 @@ export class SummaryPrinter extends Printer {
 			totals: { blankLines: totalBlankLines, bytes: totalBytes, chars: totalChars, codeLines: totalCodeLines, lines: totalLines }
 		} = rootNode;
 
-		logger.log(this.style.bold(`Files: ${formatter(totalFiles)}`));
-		logger.log(this.style.bold(`Lines: ${formatter(totalLines)}`));
-		logger.log(this.style.bold(`Code Lines: ${formatter(totalCodeLines)}`));
-		logger.log(this.style.bold(`Blank Lines: ${formatter(totalBlankLines)}`));
-		logger.log(this.style.bold(`Chars: ${formatter(totalChars)}`));
+		this.logger.log(this.style.bold(`Files: ${formatter(totalFiles)}`));
+		this.logger.log(this.style.bold(`Lines: ${formatter(totalLines)}`));
+		this.logger.log(this.style.bold(`Code Lines: ${formatter(totalCodeLines)}`));
+		this.logger.log(this.style.bold(`Blank Lines: ${formatter(totalBlankLines)}`));
+		this.logger.log(this.style.bold(`Chars: ${formatter(totalChars)}`));
 
-		if (totalBytes > 0) logger.log(this.style.bold(`Size: ${this.formatBytes(totalBytes)}`));
+		if (totalBytes > 0) this.logger.log(this.style.bold(`Size: ${this.formatBytes(totalBytes)}`));
 	}
 }
 
@@ -260,7 +262,7 @@ export class TablePrinter extends Printer {
 		const sorted = sortNodes(nodes, this.config.sortBy, this.config.order);
 
 		// Header
-		logger.log(
+		this.logger.log(
 			"Directory".padEnd(this.COLS.name) +
 				"Lines".padStart(this.COLS.lines) +
 				"Code Lines".padStart(this.COLS.lines) +
@@ -272,7 +274,7 @@ export class TablePrinter extends Printer {
 		);
 
 		for (const node of sorted) {
-			logger.log(
+			this.logger.log(
 				node.name.padEnd(this.COLS.name) +
 					formatter(node.totals.lines).padStart(this.COLS.lines) +
 					formatter(node.totals.codeLines).padStart(this.COLS.lines) +
@@ -300,10 +302,10 @@ export class TopFilesPrinter extends Printer {
 		const {
 			totals: { chars: totalChars, lines: totalLines }
 		} = rootNode;
-		logger.log("Top Files:");
+		this.logger.log("Top Files:");
 		sorted.forEach((f, i) => {
 			const displayPath = path.relative(rootNode.path, f.path);
-			logger.log(`${i + 1}. ${displayPath} ${this.formatFileStats(f, totalLines, totalChars)}`);
+			this.logger.log(`${i + 1}. ${displayPath} ${this.formatFileStats(f, totalLines, totalChars)}`);
 		});
 	}
 }
@@ -392,7 +394,7 @@ export class TreePrinter extends Printer {
 
 		const displayName = node.isBase ? this.style.base(node.name) : this.style.dir(node.name);
 		const label = `${prefix}${connector}${displayName}`;
-		logger.log(`${this.padLabel(label)} ${this.formatNodeStats(node, rootLines, rootChars)}`);
+		this.logger.log(`${this.padLabel(label)} ${this.formatNodeStats(node, rootLines, rootChars)}`);
 
 		const newPrefix = prefix + (isLast ? "    " : "│   ");
 
@@ -414,48 +416,9 @@ export class TreePrinter extends Printer {
 			const stats = this.formatFileStats(file, rootLines, rootChars);
 
 			const label = `${newPrefix}${conn}${this.style.file(path.basename(file.path))}`;
-			logger.log(`${this.padLabel(label)} ${stats}`);
+			this.logger.log(`${this.padLabel(label)} ${stats}`);
 		});
 	}
-}
-export function sortGroups(groups: Array<[string, GroupStats]>, sortBy: CodeStatsConfig["sortBy"] = "lines", order: CodeStatsConfig["order"]) {
-	const dir = order === "asc" ? 1 : -1;
-	return [...groups].sort((a, b) => {
-		const [nameA, statsA] = a;
-		const [nameB, statsB] = b;
-
-		let result = 0;
-
-		switch (sortBy) {
-			case "blankLines":
-				result = statsA.blankLines - statsB.blankLines;
-				break;
-			case "chars":
-				result = statsA.chars - statsB.chars;
-				break;
-			case "codeLines":
-				result = statsA.codeLines - statsB.codeLines;
-				break;
-			case "files":
-				result = statsA.count - statsB.count;
-				break;
-			case "lines":
-				result = statsA.lines - statsB.lines;
-				break;
-			case "name":
-				result = nameA.localeCompare(nameB);
-				break;
-			case "size":
-				result = statsA.bytes - statsB.bytes;
-				break;
-			default:
-				sortBy satisfies never;
-		}
-
-		if (result === 0) result = nameA.localeCompare(nameB);
-
-		return result * dir;
-	});
 }
 export function stripAnsi(input: string): string {
 	return input.replace(ANSI_FULL_REGEX, "");

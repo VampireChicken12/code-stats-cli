@@ -1,6 +1,8 @@
-import type { DirNode } from "@/src/types";
+import type { DirNode, FileStats } from "@/src/types";
 
 import { type CodeStatsConfig } from "./config";
+
+export type GroupStats = FileStats & { count: number };
 
 export function sortFiles(files: DirNode["files"], sortBy: CodeStatsConfig["sortBy"] = "lines", order: CodeStatsConfig["order"]) {
 	const dir = order === "asc" ? 1 : -1;
@@ -37,6 +39,46 @@ export function sortFiles(files: DirNode["files"], sortBy: CodeStatsConfig["sort
 		if (result === 0) {
 			result = a.path.localeCompare(b.path);
 		}
+		return result * dir;
+	});
+}
+
+export function sortGroups(groups: Array<[string, GroupStats]>, sortBy: CodeStatsConfig["sortBy"] = "lines", order: CodeStatsConfig["order"]) {
+	const dir = order === "asc" ? 1 : -1;
+	return [...groups].sort((a, b) => {
+		const [nameA, statsA] = a;
+		const [nameB, statsB] = b;
+
+		let result = 0;
+
+		switch (sortBy) {
+			case "blankLines":
+				result = statsA.blankLines - statsB.blankLines;
+				break;
+			case "chars":
+				result = statsA.chars - statsB.chars;
+				break;
+			case "codeLines":
+				result = statsA.codeLines - statsB.codeLines;
+				break;
+			case "files":
+				result = statsA.count - statsB.count;
+				break;
+			case "lines":
+				result = statsA.lines - statsB.lines;
+				break;
+			case "name":
+				result = nameA.localeCompare(nameB);
+				break;
+			case "size":
+				result = statsA.bytes - statsB.bytes;
+				break;
+			default:
+				sortBy satisfies never;
+		}
+
+		if (result === 0) result = nameA.localeCompare(nameB);
+
 		return result * dir;
 	});
 }
